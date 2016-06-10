@@ -8,10 +8,15 @@ import json
 
 exitFlag = False
 isInFlightMode = False
-
+accentRate = 0.0
 im_lost = "no gps fix"
+im_good = "got gps fix"
 lastFixTime = time.time()
-GPSDAT = {"status":"init", "lat":"0.00", "lon":"0.00", "alt":0, "fixTime":"000000"}
+lastAltTime = 0
+prev_alt = 0.0
+GPSDAT = {"status":"init", "navmode":"unknown",
+          "lat":"0.00", "lon":"0.00", "alt":0, 
+          "fixTime":"000000"}
 
 #########################################################################
 #                    comm thread
@@ -35,7 +40,10 @@ class communicationThread (threading.Thread):
     def send_bytes(self, buffer):
       data = bytearray(len(buffer))
       data[0:] = buffer[0:]
-      self.fw.write(data)
+      try:
+        self.fw.write(data)
+      except:
+        print("i2c write error")
 
     def read_byte(self):
       ch =255
@@ -107,8 +115,8 @@ class communicationThread (threading.Thread):
             elif ch == '$':
                rxNMEA = True
                response = ch
-          except:
-            pass
+          except Exception as x:
+            print("Exception: %s" % x)
         print "Exiting Communication Thread"
 
 #########################################################################
@@ -117,42 +125,45 @@ class communicationThread (threading.Thread):
 
 def update_files(filename="gps"):
     global GPSDAT
-    if GPSDAT["status"] == im_lost:
-        file = open(filename + ".txt","w")
-        file.write("No GPS fix\n")
-        file.close()
-        lastFixTime = time.time()
-        return
- 
+    try:
+      # Change latitue and longitude to decimal degrees format
+      longitude = GPSDAT["lon"]
+      latitude = GPSDAT["lat"]
+      degrees_lon = float(longitude[:3])
+      fraction_lon = float(longitude[3:]) / 60
+      degrees_lat = float(latitude[:2])
+      fraction_lat = float(latitude[2:]) / 60
+      DD_longitude = degrees_lon + fraction_lon  # longitude (decimal degrees)
+      DD_latitude = degrees_lat + fraction_lat # latitude (decimal degrees)
+      timestr = GPSDAT['fixTime'][0:2] + ':' + GPSDAT['fixTime'][2:4]
+    except Exception as x:
+      print ("bad data while calc files: %s" % x) 
+      return
 
-    # Change latitue and longitude to decimal degrees format
-    longitude = GPSDAT["lon"]
-    latitude = GPSDAT["lat"]
-    degrees_lon = float(longitude[:3])
-    fraction_lon = float(longitude[3:]) / 60
-    degrees_lat = float(latitude[:2])
-    fraction_lat = float(latitude[2:]) / 60
 
-    DD_longitude = degrees_lon + fraction_lon  # longitude (decimal degrees)
-    DD_latitude = degrees_lat + fraction_lat # latitude (decimal degrees)
-
-    timestr = GPSDAT['fixTime'][0:2] + ':' + GPSDAT['fixTime'][2:4]
     
     jsondat = {
       'Lat' : DD_latitude,
       'Lon' : DD_longitude,
       'Alt' : GPSDAT["alt"],
       'fixTime' : timestr,
-      'Status' : GPSDAT["status"] 
+      'Status' : GPSDAT["status"],
+      'NavMode' : GPSDAT["navmode"] 
      }
+    if "accentRate" in GPSDAT:
+      jsondat["accentRate"] = GPSDAT["accentRate"]
+
     file = open(filename + ".json", "w")
     file.write(json.dumps(jsondat, indent=2))
     file.close()
 
     file = open(filename + ".txt", "w")
-    file.write("Lat %.4f\n" % DD_latitude)
-    file.write("Lon %.4f\n" % DD_longitude)
-    file.write("Alt %s\n" % GPSDAT["alt"])
+    if GPSDAT["status"] == im_lost:
+      file.write("No GPS fix\n")
+    else:
+      file.write("Lat %.4f\n" % DD_latitude)
+      file.write("Lon %.4f\n" % DD_longitude)
+      file.write("Alt %s\n" % GPSDAT["alt"])
     file.close()
     lastFixTime = time.time()
 
@@ -189,15 +200,33 @@ def parse_gngga(tokens):
     return True
 
 def nmea_handler(line):
+  global lastAltTime, prev_alt
+
   tokens = line.split(',')
   cmnd = tokens[0][1:]
   if cmnd == "GNTXT":
     pass
   elif cmnd == "GNRMC":
+    print("fix:  %s" % line)
     if parse_gnrmc(tokens):
+      GPSDAT["status"] = im_good
       update_files()
   elif cmnd == "GNGGA":
+    print("fix:  %s" % line)
     if parse_gngga(tokens):
+      GPSDAT["status"] = im_good
+      now = time.time()
+      delta_time = now - lastAltTime
+      if lastAltTime == 0:
+         lastAltTime = now
+         prev_alt = float(GPSDAT["alt"])
+         GPSDAT['accentRate'] = 0
+      elif delta_time > 10 :
+        delta_alt = float(GPSDAT["alt"]) - prev_alt
+        accent = delta_alt/delta_time
+        print("%s m / %s sec = %s" % ( delta_alt, delta_time, accent))
+        GPSDAT["accentRate"] = 0.7 * GPSDAT["accentRate"] + 0.3 * accent
+        lastAltTime = now
       update_files()
   else:
     print("nmea: %s" % line)
@@ -206,7 +235,8 @@ def ublox_handler(buffer):
   global isInFlightMode
   ack = [181, 98, 5, 1, 2, 0, 6, 36, 50, 91]
   if buffer == ack:
-    GPSDAT["status"] = "in flight mode"
+    print("got ACK")
+    GPSDAT["navmode"] = "flight"
     isInFlightMode = True
     update_files()
   else:
@@ -236,10 +266,11 @@ if __name__ == "__main__":
         comm_thread.send_bytes(setNav)
 
       elapsed = time.time() - lastFixTime
-      if elapsed > 5*60:
+      if elapsed > 1*60:
+          print("fix is too old (%s sec)" % elapsed)
           GPSDAT["status"] = im_lost
           update_files()
-
+          lastFixTime = time.time()
       time.sleep(5)
     except KeyboardInterrupt: # If CTRL+C is pressed, exit cleanly
       exitFlag = True
