@@ -22,6 +22,8 @@ GPSDAT = {"status":"init", "navmode":"unknown",
 #                    comm thread
 #########################################################################
 
+# sudo bash -c "echo options i2c_bcm2708 baudrate=50000 > /etc/modprobe.d/i2c.conf"
+
 class communicationThread (threading.Thread):
     def __init__(self, onNMEA, onUBLOX):
         threading.Thread.__init__(self)
@@ -51,7 +53,7 @@ class communicationThread (threading.Thread):
         try:
           if exitFlag:
             return ch
-          ch = self.fr.read(1)
+          ch = self.fr.read(1) 
           if ch==255:
             time.sleep(0.1)
         except IOError as x:
@@ -102,7 +104,7 @@ class communicationThread (threading.Thread):
                 response = ""
                 rxNMEA = False
               else:
-                response += ch
+                response += chr(ord(ch) & 0x7f)
             elif rxUBLOX:
                response.append(ord(ch))
                if len(response) >= 8 and len(response) == 8 + response[4]:
