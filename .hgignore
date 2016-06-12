@@ -10,3 +10,5 @@ syntax: glob
 a.out
 pisstv/photos/*
 pisstv/.git
+utils/*.png
+utils/*.jpg
