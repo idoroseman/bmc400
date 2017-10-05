@@ -42,3 +42,18 @@ while y < img.size[1]:
   sz += 2
   del font
 img.save("b_test.png")
+
+img=Image.new("RGBA", (500,ystep * len(ttf_files)),(255,255,255))
+draw = ImageDraw.Draw(img)
+filename = "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+font = ImageFont.truetype(filename, 16)  
+for i in range(16):
+  draw.text((i * 15 + 20, 0), "%x" % i,(0,0,0))
+  draw.text((0, i*15 +20), "%02x" %i,(0,0,0))
+for i in range(256):
+  x = (i % 16) * 15 + 20
+  y = (i / 16) * 15 + 20
+  draw.text((x,y), "%s" % chr(i) , (0,0,0), font = font)
+draw.text((0,300),u"\\/    --    /\\   \x2191 \x2193",(0,0,0), font=font)
+del font
+img.save("c_test.png") 

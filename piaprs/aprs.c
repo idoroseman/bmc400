@@ -510,7 +510,7 @@ void SendAPRS(const struct arguments *ARGS)
 	ARGS->ssid,
     "APRS", 0,
     "WIDE1", 1, "WIDE2",1,
-    "!/%s%sO   /A=%06ld|%s|%s/%s,%d'C,http://www.pi-in-the-sky.com",
+    "!/%s%sO   /A=%06ld|%s|%s/%s,%d'C,http://idoroseman.com",
     ax25_base91enc(slat, 4, aprs_lat),
     ax25_base91enc(slng, 4, aprs_lon),
     aprs_alt, stlm, comment, ARGS->callsign, Count);	// , errorstatus,temperature1);
