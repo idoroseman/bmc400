@@ -8,7 +8,7 @@ function say {
   ./dorji rx
 }
 
-CALLSIGN="4x6ub"
+CALLSIGN="4X6UB"
 
 echo "boot up"
 echo `date` >> /home/pi/build/flight.log

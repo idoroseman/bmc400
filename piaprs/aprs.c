@@ -120,9 +120,9 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 void json_handler(char *token, char *value, void *param)
 {
   struct arguments *args = param;
-  if (!strcmp(token,"Lat"))
+  if (!strcmp(token,"Lon"))
      args->Longitude = atof(value); 
-  else if (!strcmp(token, "Lon"))
+  else if (!strcmp(token, "Lat"))
      args->Latitude  = atof(value);
   else if (!strcmp(token, "Alt"))
      args->Altitude = atoi(value);
@@ -529,7 +529,7 @@ int main(int argc, char *argv[])
         arguments.Longitude = 32.0;
         arguments.Latitude = 34.0;
         arguments.Altitude = 100; //meter 
-        arguments.callsign = "4x6ub";
+        arguments.callsign = "4X6UB";
         arguments.ssid = 11;
 
 	arguments.silent = 0;
